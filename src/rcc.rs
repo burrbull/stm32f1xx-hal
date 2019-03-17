@@ -53,6 +53,8 @@ pub struct AHB {
 }
 
 impl AHB {
+    // TODO remove `allow`
+    #[allow(dead_code)]
     pub fn enr(&mut self) -> &rcc::AHBENR {
         // NOTE(unsafe) this proxy grants exclusive access to this register
         unsafe { &(*RCC::ptr()).ahbenr }

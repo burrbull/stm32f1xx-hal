@@ -19,11 +19,11 @@
 //!
 //! ```toml
 //! [dependencies.stm32f1xx-hal]
-//! version = "0.2.0"
+//! version = "0.2.1"
 //! features = ["stm32f103", "rt"]
 //! ```
 //!
-//! [cortex-m-quickstart]: https://docs.rs/cortex-m-quickstart/~0.2.3
+//! [cortex-m-quickstart]: https://docs.rs/cortex-m-quickstart/0.3.1
 //!
 //! ## Usage example
 //!
