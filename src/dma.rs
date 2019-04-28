@@ -34,7 +34,7 @@ where
 }
 
 impl<BUFFER, CHANNEL> CircBuffer<BUFFER, CHANNEL> {
-    pub(crate) fn new(buf: &'static mut [BUFFER; 2], chan: CHANNEL) -> Self {
+    pub fn new(buf: &'static mut [BUFFER; 2], chan: CHANNEL) -> Self {
         CircBuffer {
             buffer: buf,
             channel: chan,
