@@ -4,9 +4,13 @@
 #![no_main]
 #![no_std]
 
+use pin_utils::pin_mut;
+use core::mem;
+use core::pin::Pin;
+
 use panic_halt as _;
 
-use cortex_m::{asm, singleton};
+use cortex_m::asm;
 
 use stm32f1xx_hal::{
     prelude::*,
@@ -56,7 +60,9 @@ fn main() -> ! {
     );
 
     let rx = serial.split().1.with_dma(channels.5);
-    let buf = singleton!(: [u8; 8] = [0; 8]).unwrap();
+    let buffer = [0; 8];
+    pin_mut!(buffer);
+    let buf: Pin<&mut [u8; 8]> = buffer;
 
     let (_buf, _rx) = rx.read(buf).wait();
 

@@ -8,7 +8,7 @@ pub use crate::hal::digital::ToggleableOutputPin as _embedded_hal_digital_Toggle
 pub use crate::hal::prelude::*;
 pub use crate::pwm::PwmExt as _stm32_hal_pwm_PwmExt;
 pub use crate::rcc::RccExt as _stm32_hal_rcc_RccExt;
-pub use crate::dma::CircReadDma as _stm32_hal_dma_CircReadDma;
+//pub use crate::dma::CircReadDma as _stm32_hal_dma_CircReadDma;
 pub use crate::dma::ReadDma as _stm32_hal_dma_ReadDma;
 pub use crate::dma::WriteDma as _stm32_hal_dma_WriteDma;
 pub use crate::time::U32Ext as _stm32_hal_time_U32Ext;

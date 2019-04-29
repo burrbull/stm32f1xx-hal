@@ -1,8 +1,11 @@
 //! # Direct Memory Access
 #![allow(dead_code)]
 
+use as_slice::{AsMutSlice, AsSlice};
+use core::pin::Pin;
 use core::marker::PhantomData;
 use core::ops;
+use core::sync::atomic::{self, Ordering};
 
 use crate::rcc::AHB;
 
@@ -24,6 +27,7 @@ pub enum Half {
     Second,
 }
 
+/*
 pub struct CircBuffer<BUFFER, CHANNEL>
 where
     BUFFER: 'static,
@@ -42,22 +46,7 @@ impl<BUFFER, CHANNEL> CircBuffer<BUFFER, CHANNEL> {
         }
     }
 }
-
-pub trait Static<B> {
-    fn borrow(&self) -> &B;
-}
-
-impl<B> Static<B> for &'static B {
-    fn borrow(&self) -> &B {
-        *self
-    }
-}
-
-impl<B> Static<B> for &'static mut B {
-    fn borrow(&self) -> &B {
-        *self
-    }
-}
+*/
 
 pub trait DmaExt {
     type Channels;
@@ -65,45 +54,86 @@ pub trait DmaExt {
     fn split(self, ahb: &mut AHB) -> Self::Channels;
 }
 
-pub struct Transfer<MODE, BUFFER, PAYLOAD> {
-    _mode: PhantomData<MODE>,
-    buffer: BUFFER,
-    payload: PAYLOAD,
+pub trait Stop {
+    /// Returns `true` if there's a transfer in progress
+    fn stop(&mut self);
 }
 
-impl<BUFFER, PAYLOAD> Transfer<R, BUFFER, PAYLOAD> {
-    pub(crate) fn r(buffer: BUFFER, payload: PAYLOAD) -> Self {
-        Transfer {
-            _mode: PhantomData,
-            buffer,
-            payload,
+pub trait InProgress {
+    fn in_progress() -> bool;
+}
+
+/// A DMA transfer
+pub struct Transfer<BUFFER, PAYLOAD> where PAYLOAD: Stop {
+    pub(crate) inner: Option<Inner<BUFFER, PAYLOAD>>,
+}
+
+pub(crate) struct Inner<BUFFER, PAYLOAD> {
+    pub(crate) buffer: Pin<BUFFER>,
+    pub(crate) payload: PAYLOAD,
+}
+
+impl<BUFFER, PAYLOAD> Drop for Transfer<BUFFER, PAYLOAD> where PAYLOAD: Stop {
+    fn drop(&mut self) {
+        if let Some(inner) = self.inner.as_mut() {
+            // NOTE: this is a volatile write
+            inner.payload.stop();
+
+            // we need a read here to make the Acquire fence effective
+            // we do *not* need this if `dma.stop` does a RMW operation
+            unsafe {
+                core::ptr::read_volatile(&0);
+            }
+
+            // we need a fence here for the same reason we need one in `Transfer.wait`
+            atomic::compiler_fence(Ordering::Acquire);
         }
     }
 }
 
-impl<BUFFER, PAYLOAD> Transfer<W, BUFFER, PAYLOAD> {
-    pub(crate) fn w(buffer: BUFFER, payload: PAYLOAD) -> Self {
-        Transfer {
-            _mode: PhantomData,
-            buffer,
-            payload,
-        }
+impl<BUFFER, PAYLOAD, CHANNEL> Transfer<BUFFER, RxDma<PAYLOAD, CHANNEL>>
+where
+    RxDma<PAYLOAD, CHANNEL>: Stop,
+    CHANNEL: InProgress,
+{
+    /// Returns `true` if the DMA transfer has finished
+    pub fn is_done(&self) -> bool {
+        !CHANNEL::in_progress()
+    }
+    pub fn wait(mut self) -> (Pin<BUFFER>, RxDma<PAYLOAD, CHANNEL>) {
+        while self.is_done() {}
+
+        atomic::compiler_fence(Ordering::Acquire);
+
+        let inner = self
+            .inner
+            .take()
+            .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+        (inner.buffer, inner.payload)
     }
 }
 
-impl<BUFFER, PAYLOAD> ops::Deref for Transfer<R, BUFFER, PAYLOAD> {
-    type Target = BUFFER;
+impl<BUFFER, PAYLOAD, CHANNEL> Transfer<BUFFER, TxDma<PAYLOAD, CHANNEL>>
+where
+    TxDma<PAYLOAD, CHANNEL>: Stop,
+    CHANNEL: InProgress,
+{
+    /// Returns `true` if the DMA transfer has finished
+    pub fn is_done(&self) -> bool {
+        !CHANNEL::in_progress()
+    }
+    pub fn wait(mut self) -> (Pin<BUFFER>, TxDma<PAYLOAD, CHANNEL>) {
+        while self.is_done() {}
 
-    fn deref(&self) -> &BUFFER {
-        &self.buffer
+        atomic::compiler_fence(Ordering::Acquire);
+
+        let inner = self
+            .inner
+            .take()
+            .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+        (inner.buffer, inner.payload)
     }
 }
-
-/// Read transfer
-pub struct R;
-
-/// Write transfer
-pub struct W;
 
 macro_rules! dma {
     ($($DMAX:ident: ($dmaX:ident, $dmaXen:ident, $dmaXrst:ident, {
@@ -118,12 +148,9 @@ macro_rules! dma {
     }),)+) => {
         $(
             pub mod $dmaX {
-                use core::sync::atomic::{self, Ordering};
-                use core::ptr;
-
                 use crate::pac::{$DMAX, dma1};
 
-                use crate::dma::{CircBuffer, DmaExt, Error, Event, Half, Transfer, W, RxDma, TxDma};
+                use crate::dma::{/*CircBuffer, */DmaExt, /*Error, */Event, /*Half, */RxDma, TxDma};
                 use crate::rcc::AHB;
 
                 pub struct Channels((), $(pub $CX),+);
@@ -166,10 +193,11 @@ macro_rules! dma {
                             self.ifcr().write(|w| w.$cgifX().set_bit());
                             self.ch().cr.modify(|_, w| w.en().clear_bit() );
                         }
+                    }
 
-                        /// Returns `true` if there's a transfer in progress
-                        fn in_progress(&self) -> bool {
-                            self.isr().$tcifX().bit_is_clear()
+                    impl super::InProgress for $CX {
+                        fn in_progress() -> bool {
+                            unsafe { (*$DMAX::ptr()).isr.read() }.$tcifX().bit_is_clear()
                         }
                     }
 
@@ -213,6 +241,7 @@ macro_rules! dma {
                         }
                     }
 
+/*
                     impl<B> CircBuffer<B, $CX> {
                         /// Peeks into the readable half of the buffer
                         pub fn peek<R, F>(&mut self, f: F) -> Result<R, Error>
@@ -279,53 +308,7 @@ macro_rules! dma {
                         }
                     }
 
-                    impl<BUFFER, PAYLOAD, MODE> Transfer<MODE, BUFFER, RxDma<PAYLOAD, $CX>> {
-                        pub fn is_done(&self) -> bool {
-                            !self.payload.channel.in_progress()
-                        }
-
-                        pub fn wait(mut self) -> (BUFFER, RxDma<PAYLOAD, $CX>) {
-                            while !self.is_done() {}
-
-                            atomic::compiler_fence(Ordering::Acquire);
-
-                            self.payload.stop();
-
-                            // we need a read here to make the Acquire fence effective
-                            // we do *not* need this if `dma.stop` does a RMW operation
-                            unsafe { ptr::read_volatile(&0); }
-
-                            // we need a fence here for the same reason we need one in `Transfer.wait`
-                            atomic::compiler_fence(Ordering::Acquire);
-
-                            (self.buffer, self.payload)
-                        }
-                    }
-
-                    impl<BUFFER, PAYLOAD, MODE> Transfer<MODE, BUFFER, TxDma<PAYLOAD, $CX>> {
-                        pub fn is_done(&self) -> bool {
-                            !self.payload.channel.in_progress()
-                        }
-
-                        pub fn wait(mut self) -> (BUFFER, TxDma<PAYLOAD, $CX>) {
-                            while !self.is_done() {}
-
-                            atomic::compiler_fence(Ordering::Acquire);
-
-                            self.payload.stop();
-
-                            // we need a read here to make the Acquire fence effective
-                            // we do *not* need this if `dma.stop` does a RMW operation
-                            unsafe { ptr::read_volatile(&0); }
-
-                            // we need a fence here for the same reason we need one in `Transfer.wait`
-                            atomic::compiler_fence(Ordering::Acquire);
-
-                            (self.buffer, self.payload)
-                        }
-                    }
-
-                    impl<BUFFER, PAYLOAD> Transfer<W, &'static mut BUFFER, RxDma<PAYLOAD, $CX>> {
+                    impl<BUFFER, PAYLOAD> Transfer<&'static mut BUFFER, RxDma<PAYLOAD, $CX>> {
                         pub fn peek<T>(&self) -> &[T]
                         where
                             BUFFER: AsRef<[T]>,
@@ -338,6 +321,7 @@ macro_rules! dma {
                             &slice[..(capacity - pending)]
                         }
                     }
+*/
 
                     impl<PAYLOAD> RxDma<PAYLOAD, $CX> {
                         pub fn start(&mut self) {
@@ -348,12 +332,24 @@ macro_rules! dma {
                         }
                     }
 
+                    impl<PAYLOAD> crate::dma::Stop for RxDma<PAYLOAD, $CX> {
+                        fn stop(&mut self) {
+                            self.stop()
+                        }
+                    }
+
                     impl<PAYLOAD> TxDma<PAYLOAD, $CX> {
                         pub fn start(&mut self) {
                             self.channel.start()
                         }
                         pub fn stop(&mut self) {
                             self.channel.stop()
+                        }
+                    }
+
+                    impl<PAYLOAD> crate::dma::Stop for TxDma<PAYLOAD, $CX> {
+                        fn stop(&mut self) {
+                            self.stop()
                         }
                     }
 
@@ -475,6 +471,7 @@ pub trait Transmit {
     type ReceivedWord;
 }
 
+/*
 pub trait CircReadDma<B, RS>: Receive
 where
     B: AsMut<[RS]>,
@@ -482,23 +479,28 @@ where
 {
     fn circ_read(self, buffer: &'static mut [B; 2]) -> CircBuffer<B, Self::RxChannel>;
 }
+*/
 
-pub trait ReadDma<B, RS>: Receive
+pub trait ReadDma<B>: Receive + Stop
 where
-    B: AsMut<[RS]>,
+    B: ops::DerefMut + 'static,
+    B::Target: AsMutSlice<Element = Self::TransmittedWord> + Unpin,
     Self: core::marker::Sized,
 {
-    fn read(
-        self,
-        buffer: &'static mut B,
-    ) -> Transfer<W, &'static mut B, Self>;
+    /// Receives data into the given `buffer` until it's filled
+    ///
+    /// Returns a value that represents the in-progress DMA transfer
+    fn read(self, buffer: Pin<B>) -> Transfer<B, Self>;
 }
 
-pub trait WriteDma<A, B, TS>: Transmit
+pub trait WriteDma<B>: Transmit + Stop
 where
-    A: AsRef<[TS]>,
-    B: Static<A>,
+    B: ops::Deref + 'static,
+    B::Target: AsSlice<Element = Self::ReceivedWord>,
     Self: core::marker::Sized,
 {
-    fn write(self, buffer: B) -> Transfer<R, B, Self>;
+    /// Sends out the given `buffer`
+    ///
+    /// Returns a value that represents the in-progress DMA transfer
+    fn write(self, buffer: Pin<B>) -> Transfer<B, Self>;
 }

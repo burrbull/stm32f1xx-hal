@@ -25,7 +25,7 @@ fn main() -> ! {
     let mut afio = p.AFIO.constrain(&mut rcc.apb2);
     let mut dbg = p.DBGMCU;
 
-    let mut gpiob = p.GPIOB.split(&mut rcc.apb2);
+    let gpiob = p.GPIOB.split(&mut rcc.apb2);
 
     let pb4 = gpiob.pb4;
     let pb5 = gpiob.pb5;

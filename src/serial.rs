@@ -43,9 +43,11 @@ use core::sync::atomic::{self, Ordering};
 use nb;
 use crate::pac::{USART1, USART2, USART3};
 use void::Void;
+use as_slice::{AsMutSlice, AsSlice};
+use core::pin::Pin;
 
 use crate::afio::MAPR;
-use crate::dma::{dma1, CircBuffer, Static, Transfer, R, W, RxDma, TxDma};
+use crate::dma::{dma1, /*CircBuffer, */Transfer, RxDma, TxDma, Inner};
 use crate::gpio::gpioa::{PA10, PA2, PA3, PA9};
 use crate::gpio::gpiob::{PB10, PB11, PB6, PB7};
 use crate::gpio::{Alternate, Floating, Input, PushPull};
@@ -411,6 +413,7 @@ macro_rules! serialdma {
                 }
             }
 
+/*
             impl<B> crate::dma::CircReadDma<B, u8> for RxDma<$USARTX, $dmarxch> where B: AsMut<[u8]> {
                 fn circ_read(mut self, buffer: &'static mut [B; 2],
                 ) -> CircBuffer<B, $dmarxch>
@@ -440,16 +443,21 @@ macro_rules! serialdma {
                     CircBuffer::new(buffer, channel)
                 }
             }
+*/
 
-            impl<B> crate::dma::ReadDma<B, u8> for RxDma<$USARTX, $dmarxch> where B: AsMut<[u8]> {
-                fn read(mut self, buffer: &'static mut B,
-                ) -> Transfer<W, &'static mut B, Self>
-                {
+            impl<B> crate::dma::ReadDma<B> for RxDma<$USARTX, $dmarxch>
+            where
+                B: core::ops::DerefMut + 'static,
+                B::Target: AsMutSlice<Element = Self::TransmittedWord> + Unpin,
+            {
+                fn read(mut self, mut buffer: Pin<B>) -> Transfer<B, Self> {
                     {
-                        let buffer = buffer.as_mut();
+                        let slice = buffer.as_mut_slice();
+                        let (ptr, len) = (slice.as_mut_ptr(), slice.len());
+
                         self.channel.set_peripheral_address(unsafe{ &(*$USARTX::ptr()).dr as *const _ as u32 }, false);
-                        self.channel.set_memory_address(buffer.as_ptr() as u32, true);
-                        self.channel.set_transfer_length(buffer.len());
+                        self.channel.set_memory_address(ptr as u32, true);
+                        self.channel.set_transfer_length(len);
                     }
                     atomic::compiler_fence(Ordering::Release);
                     self.channel.ch().cr.modify(|_, w| { w
@@ -462,21 +470,29 @@ macro_rules! serialdma {
                     });
                     self.start();
 
-                    Transfer::w(buffer, self)
+                    Transfer {
+                        inner: Some(Inner {
+                            buffer,
+                            payload: self,
+                        }),
+                    }
                 }
             }
 
-            impl<A, B> crate::dma::WriteDma<A, B, u8> for TxDma<$USARTX, $dmatxch> where A: AsRef<[u8]>, B: Static<A> {
-                fn write(mut self, buffer: B
-                ) -> Transfer<R, B, Self>
-                {
+            impl<B> crate::dma::WriteDma<B> for TxDma<$USARTX, $dmatxch>
+            where
+                B: core::ops::Deref + 'static,
+                B::Target: AsSlice<Element = Self::ReceivedWord>
+            {
+                fn write(mut self, buffer: Pin<B>) -> Transfer<B, Self> {
                     {
-                        let buffer = buffer.borrow().as_ref();
+                        let slice = buffer.as_slice();
+                        let (ptr, len) = (slice.as_ptr(), slice.len());
 
                         self.channel.set_peripheral_address(unsafe{ &(*$USARTX::ptr()).dr as *const _ as u32 }, false);
 
-                        self.channel.set_memory_address(buffer.as_ptr() as u32, true);
-                        self.channel.set_transfer_length(buffer.len());
+                        self.channel.set_memory_address(ptr as u32, true);
+                        self.channel.set_transfer_length(len);
                     }
 
                     atomic::compiler_fence(Ordering::Release);
@@ -491,7 +507,12 @@ macro_rules! serialdma {
                     });
                     self.start();
 
-                    Transfer::r(buffer, self)
+                    Transfer {
+                        inner: Some(Inner {
+                            buffer,
+                            payload: self,
+                        }),
+                    }
                 }
             }
         )+
