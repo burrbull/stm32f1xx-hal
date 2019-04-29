@@ -417,6 +417,9 @@ dma! {
         ),
     }),
 
+}
+#[cfg(feature = "dma2")]
+dma! {
     DMA2: (dma2, dma2en, dma2rst, {
         C1: (
             ch1,
