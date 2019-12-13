@@ -108,8 +108,10 @@ macro_rules! dma {
     }),)+) => {
         $(
             pub mod $dmaX {
+                use as_slice::AsSlice;
                 use core::sync::atomic::{self, Ordering};
                 use core::ptr;
+                use core::pin::Pin;
 
                 use crate::pac::{$DMAX, dma1};
 
@@ -331,17 +333,18 @@ macro_rules! dma {
                         }
                     }
 
-                    impl<BUFFER, PAYLOAD> Transfer<W, &'static mut BUFFER, RxDma<PAYLOAD, $CX>>
+                    impl<BUFFER, PAYLOAD> Transfer<W, Pin<BUFFER>, RxDma<PAYLOAD, $CX>>
                     where
                         RxDma<PAYLOAD, $CX>: TransferPayload,
                     {
                         pub fn peek<T>(&self) -> &[T]
                         where
-                            BUFFER: AsRef<[T]>,
+                            BUFFER: core::ops::Deref,
+                            BUFFER::Target: AsSlice<Element=T>,
                         {
                             let pending = self.payload.channel.get_ndtr() as usize;
 
-                            let slice = self.buffer.as_ref();
+                            let slice = self.buffer.as_slice();
                             let capacity = slice.len();
 
                             &slice[..(capacity - pending)]
