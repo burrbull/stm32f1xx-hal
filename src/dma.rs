@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 use core::marker::PhantomData;
+use core::pin::Pin;
 use core::ops;
 
 use crate::rcc::AHB;
@@ -40,22 +41,6 @@ impl<BUFFER, PAYLOAD> CircBuffer<BUFFER, PAYLOAD> {
             payload,
             readable_half: Half::Second,
         }
-    }
-}
-
-pub trait Static<B> {
-    fn borrow(&self) -> &B;
-}
-
-impl<B> Static<B> for &'static B {
-    fn borrow(&self) -> &B {
-        *self
-    }
-}
-
-impl<B> Static<B> for &'static mut B {
-    fn borrow(&self) -> &B {
-        *self
     }
 }
 
@@ -490,20 +475,24 @@ where
 
 pub trait ReadDma<B, RS>: Receive
 where
-    B: as_slice::AsMutSlice<Element=RS>,
+    B: ops::DerefMut + 'static,
+    B::Target: as_slice::AsMutSlice<Element = RS> + Unpin,
     Self: core::marker::Sized,
 {
-    fn read(
-        self,
-        buffer: &'static mut B,
-    ) -> Transfer<W, &'static mut B, Self>;
+    /// Receives data into the given `buffer` until it's filled
+    ///
+    /// Returns a value that represents the in-progress DMA transfer
+    fn read(self, buffer: Pin<B>) -> Transfer<W, Pin<B>, Self>;
 }
 
-pub trait WriteDma<A, B, TS>: Transmit
+pub trait WriteDma<B, TS>: Transmit
 where
-    A: as_slice::AsSlice<Element=TS>,
-    B: Static<A>,
+    B: ops::Deref + 'static,
+    B::Target: as_slice::AsSlice<Element = TS>,
     Self: core::marker::Sized,
 {
-    fn write(self, buffer: B) -> Transfer<R, B, Self>;
+    /// Sends out the given `buffer`
+    ///
+    /// Returns a value that represents the in-progress DMA transfer
+    fn write(self, buffer: Pin<B>) -> Transfer<R, Pin<B>, Self>;
 }

@@ -46,9 +46,10 @@ use crate::gpio::{Alternate, Floating, Input, PushPull};
 use crate::rcc::{RccBus, Clocks, Enable, Reset, GetBusFreq};
 use crate::time::Hertz;
 use crate::dma::dma1::{C3, C5};
-use crate::dma::{Transmit, TxDma, Transfer, R, Static, TransferPayload};
+use crate::dma::{Transmit, TxDma, Transfer, R, TransferPayload};
 
 use core::sync::atomic::{self, Ordering};
+use core::pin::Pin;
 
 use as_slice::AsSlice;
 
@@ -367,18 +368,18 @@ macro_rules! spi_dma {
             }
         }
 
-        impl<A, B, REMAP, PIN> crate::dma::WriteDma<A, B, u8> for SpiTxDma<$SPIi, REMAP, PIN, $TCi>
+        impl<B, REMAP, PIN> crate::dma::WriteDma<B, u8> for SpiTxDma<$SPIi, REMAP, PIN, $TCi>
         where
-            A: AsSlice<Element=u8>,
-            B: Static<A>
+            B: core::ops::Deref + 'static,
+            B::Target: AsSlice<Element = u8>,
         {
-            fn write(mut self, buffer: B) -> Transfer<R, B, Self> {
-                {
-                    let buffer = buffer.borrow().as_slice();
-                    self.channel.set_peripheral_address(unsafe{ &(*$SPIi::ptr()).dr as *const _ as u32 }, false);
-                    self.channel.set_memory_address(buffer.as_ptr() as u32, true);
-                    self.channel.set_transfer_length(buffer.len());
-                }
+            fn write(mut self, buffer: Pin<B>) -> Transfer<R, Pin<B>, Self> {
+                let slice = buffer.as_slice();
+                let (ptr, len) = (slice.as_ptr(), slice.len());
+                self.channel.set_peripheral_address(unsafe{ &(*$SPIi::ptr()).dr as *const _ as u32 }, false);
+                self.channel.set_memory_address(ptr as u32, true);
+                self.channel.set_transfer_length(len);
+
                 atomic::compiler_fence(Ordering::Release);
                 self.channel.ch().cr.modify(|_, w| { w
                     .mem2mem() .clear_bit()

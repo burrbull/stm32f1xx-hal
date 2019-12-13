@@ -7,6 +7,8 @@
 
 use panic_halt as _;
 
+use core::pin::Pin;
+
 use stm32f1xx_hal::{
     prelude::*,
     pac,
@@ -57,7 +59,7 @@ fn main() -> ! {
     let spi_dma = spi.with_tx_dma(dma.5);
 
     // Start a DMA transfer
-    let transfer = spi_dma.write(b"hello, world");
+    let transfer = spi_dma.write(Pin::new(b"hello, world"));
 
     // Wait for it to finnish. The transfer takes ownership over the SPI device
     // and the data being sent anb those things are returned by transfer.wait

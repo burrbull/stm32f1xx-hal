@@ -5,6 +5,8 @@
 
 use panic_halt as _;
 
+use core::pin::Pin;
+
 use cortex_m::{asm, singleton};
 
 use stm32f1xx_hal::{
@@ -40,7 +42,7 @@ fn main() -> ! {
     let adc_ch0 = gpioa.pa0.into_analog(&mut gpioa.crl);
 
     let adc_dma = adc1.with_dma(adc_ch0, dma_ch1);
-    let buf = singleton!(: [u16; 8] = [0; 8]).unwrap();
+    let buf = Pin::new(singleton!(: [u16; 8] = [0; 8]).unwrap());
 
     // The read method consumes the buf and self, starts the adc and dma transfer and returns a
     // RxDma struct. The wait method consumes the RxDma struct, waits for the whole transfer to be

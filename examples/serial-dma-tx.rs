@@ -6,6 +6,8 @@
 
 use panic_halt as _;
 
+use core::pin::Pin;
+
 use cortex_m::asm;
 
 use stm32f1xx_hal::{
@@ -57,15 +59,15 @@ fn main() -> ! {
 
     let tx = serial.split().0.with_dma(channels.4);
 
-    let (_, tx) = tx.write(b"The quick brown fox").wait();
+    let (_, tx) = tx.write(Pin::new(b"The quick brown fox")).wait();
 
     asm::bkpt();
 
-    let (_, tx) = tx.write(b" jumps").wait();
+    let (_, tx) = tx.write(Pin::new(b" jumps")).wait();
 
     asm::bkpt();
 
-    tx.write(b" over the lazy dog.").wait();
+    tx.write(Pin::new(b" over the lazy dog.")).wait();
 
     asm::bkpt();
 

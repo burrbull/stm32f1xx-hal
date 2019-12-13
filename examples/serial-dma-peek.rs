@@ -6,6 +6,8 @@
 
 use panic_halt as _;
 
+use core::pin::Pin;
+
 use cortex_m::{asm, singleton};
 
 use stm32f1xx_hal::{
@@ -56,7 +58,7 @@ fn main() -> ! {
     );
 
     let rx = serial.split().1.with_dma(channels.5);
-    let buf = singleton!(: [u8; 8] = [0; 8]).unwrap();
+    let buf = Pin::new(singleton!(: [u8; 8] = [0; 8]).unwrap());
 
     let t = rx.read(buf);
 

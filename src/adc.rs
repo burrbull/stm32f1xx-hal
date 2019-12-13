@@ -2,6 +2,8 @@
 
 use embedded_hal::adc::{Channel, OneShot};
 use core::marker::PhantomData;
+use core::pin::Pin;
+use as_slice::AsMutSlice;
 
 use crate::gpio::Analog;
 use crate::gpio::{gpioa, gpiob, gpioc};
@@ -653,7 +655,7 @@ where
 impl<B, PINS, MODE> crate::dma::CircReadDma<B, u16> for AdcDma<PINS, MODE>
 where
     Self: TransferPayload,
-    B: as_slice::AsMutSlice<Element=u16>,
+    B: AsMutSlice<Element=u16>,
 {
     fn circ_read(mut self, buffer: &'static mut [B; 2]) -> CircBuffer<B, Self> {
         {
@@ -683,15 +685,16 @@ where
 impl<B, PINS, MODE> crate::dma::ReadDma<B, u16> for AdcDma<PINS, MODE>
 where
     Self: TransferPayload,
-    B: as_slice::AsMutSlice<Element=u16>,
+    B: core::ops::DerefMut + 'static,
+    B::Target: as_slice::AsMutSlice<Element = u16> + Unpin,
 {
-    fn read(mut self, buffer: &'static mut B) -> Transfer<W, &'static mut B, Self> {
-        {
-            let buffer = buffer.as_mut_slice();
-            self.channel.set_peripheral_address(unsafe{ &(*ADC1::ptr()).dr as *const _ as u32 }, false);
-            self.channel.set_memory_address(buffer.as_ptr() as u32, true);
-            self.channel.set_transfer_length(buffer.len());
-        }
+    fn read(mut self, mut buffer: Pin<B>) -> Transfer<W, Pin<B>, Self> {
+        let slice = buffer.as_mut_slice();
+        let (ptr, len) = (slice.as_ptr(), slice.len());
+        self.channel.set_peripheral_address(unsafe{ &(*ADC1::ptr()).dr as *const _ as u32 }, false);
+        self.channel.set_memory_address(ptr as u32, true);
+        self.channel.set_transfer_length(len);
+
         atomic::compiler_fence(Ordering::Release);
         self.channel.ch().cr.modify(|_, w| { w
             .mem2mem() .clear_bit()
