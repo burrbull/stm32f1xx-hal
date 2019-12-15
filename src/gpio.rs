@@ -92,7 +92,7 @@ pub trait ExtiPin {
 
 macro_rules! gpio {
     ($GPIOX:ident, $gpiox:ident, $gpioy:ident, $PXx:ident, $extigpionr:expr, [
-        $($PXi:ident: ($pxi:ident, $i:expr, $MODE:ty, $CR:ident, $exticri:ident),)+
+        $($PXi:ident: ($pxi:ident, $i:expr, $MODE:ty, $CR:ident, $exticri:ident, $extii:ident),)+
     ]) => {
         /// GPIO
         pub mod $gpiox {
@@ -218,22 +218,22 @@ macro_rules! gpio {
                     match self.i {
                         0..=3 => {
                             afio.exticr1.exticr1().modify(|r, w| unsafe {
-                                w.bits((r.bits() & !(0xf << offset)) | ($extigpionr << offset))
+                                w.$extii().bits($extigpionr)
                             });
                         },
                         4..=7 => {
                             afio.exticr2.exticr2().modify(|r, w| unsafe {
-                                w.bits((r.bits() & !(0xf << offset)) | ($extigpionr << offset))
+                                w.$extii().bits($extigpionr)
                             });
                         },
                         8..=11 => {
                             afio.exticr3.exticr3().modify(|r, w| unsafe {
-                                w.bits((r.bits() & !(0xf << offset)) | ($extigpionr << offset))
+                                w.$extii().bits($extigpionr)
                             });
                         },
                         12..=15 => {
                             afio.exticr4.exticr4().modify(|r, w| unsafe {
-                                w.bits((r.bits() & !(0xf << offset)) | ($extigpionr << offset))
+                                w.$extii().bits($extigpionr)
                             });
                         },
                         _ => unreachable!(),
@@ -613,11 +613,8 @@ macro_rules! gpio {
                 impl<MODE> ExtiPin for $PXi<Input<MODE>> {
                     /// Configure EXTI Line $i to trigger from this pin.
                     fn make_interrupt_source(&mut self, afio: &mut afio::Parts) {
-                        let offset = 4 * ($i % 4);
                         afio.$exticri.$exticri().modify(|r, w| unsafe {
-                            let mut exticr = r.bits();
-                            exticr = (exticr & !(0xf << offset)) | ($extigpionr << offset);
-                            w.bits(exticr)
+                            w.$extii().bits($extigpionr)
                         });
                     }
 
@@ -768,96 +765,96 @@ impl_pxx!{
 }
 
 gpio!(GPIOA, gpioa, gpioa, PAx, 0, [
-    PA0: (pa0, 0, Input<Floating>, CRL, exticr1),
-    PA1: (pa1, 1, Input<Floating>, CRL, exticr1),
-    PA2: (pa2, 2, Input<Floating>, CRL, exticr1),
-    PA3: (pa3, 3, Input<Floating>, CRL, exticr1),
-    PA4: (pa4, 4, Input<Floating>, CRL, exticr2),
-    PA5: (pa5, 5, Input<Floating>, CRL, exticr2),
-    PA6: (pa6, 6, Input<Floating>, CRL, exticr2),
-    PA7: (pa7, 7, Input<Floating>, CRL, exticr2),
-    PA8: (pa8, 8, Input<Floating>, CRH, exticr3),
-    PA9: (pa9, 9, Input<Floating>, CRH, exticr3),
-    PA10: (pa10, 10, Input<Floating>, CRH, exticr3),
-    PA11: (pa11, 11, Input<Floating>, CRH, exticr3),
-    PA12: (pa12, 12, Input<Floating>, CRH, exticr4),
-    PA13: (pa13, 13, Debugger, CRH, exticr4),
-    PA14: (pa14, 14, Debugger, CRH, exticr4),
-    PA15: (pa15, 15, Debugger, CRH, exticr4),
+    PA0: (pa0, 0, Input<Floating>, CRL, exticr1, exti0),
+    PA1: (pa1, 1, Input<Floating>, CRL, exticr1, exti1),
+    PA2: (pa2, 2, Input<Floating>, CRL, exticr1, exti2),
+    PA3: (pa3, 3, Input<Floating>, CRL, exticr1, exti3),
+    PA4: (pa4, 4, Input<Floating>, CRL, exticr2, exti4),
+    PA5: (pa5, 5, Input<Floating>, CRL, exticr2, exti5),
+    PA6: (pa6, 6, Input<Floating>, CRL, exticr2, exti6),
+    PA7: (pa7, 7, Input<Floating>, CRL, exticr2, exti7),
+    PA8: (pa8, 8, Input<Floating>, CRH, exticr3, exti8),
+    PA9: (pa9, 9, Input<Floating>, CRH, exticr3, exti9),
+    PA10: (pa10, 10, Input<Floating>, CRH, exticr3, exti10),
+    PA11: (pa11, 11, Input<Floating>, CRH, exticr3, exti11),
+    PA12: (pa12, 12, Input<Floating>, CRH, exticr4, exti12),
+    PA13: (pa13, 13, Debugger, CRH, exticr4, exti13),
+    PA14: (pa14, 14, Debugger, CRH, exticr4, exti14),
+    PA15: (pa15, 15, Debugger, CRH, exticr4, exti15),
 ]);
 
 gpio!(GPIOB, gpiob, gpioa, PBx, 1, [
-    PB0: (pb0, 0, Input<Floating>, CRL, exticr1),
-    PB1: (pb1, 1, Input<Floating>, CRL, exticr1),
-    PB2: (pb2, 2, Input<Floating>, CRL, exticr1),
-    PB3: (pb3, 3, Debugger, CRL, exticr1),
-    PB4: (pb4, 4, Debugger, CRL, exticr2),
-    PB5: (pb5, 5, Input<Floating>, CRL, exticr2),
-    PB6: (pb6, 6, Input<Floating>, CRL, exticr2),
-    PB7: (pb7, 7, Input<Floating>, CRL, exticr2),
-    PB8: (pb8, 8, Input<Floating>, CRH, exticr3),
-    PB9: (pb9, 9, Input<Floating>, CRH, exticr3),
-    PB10: (pb10, 10, Input<Floating>, CRH, exticr3),
-    PB11: (pb11, 11, Input<Floating>, CRH, exticr3),
-    PB12: (pb12, 12, Input<Floating>, CRH, exticr4),
-    PB13: (pb13, 13, Input<Floating>, CRH, exticr4),
-    PB14: (pb14, 14, Input<Floating>, CRH, exticr4),
-    PB15: (pb15, 15, Input<Floating>, CRH, exticr4),
+    PB0: (pb0, 0, Input<Floating>, CRL, exticr1, exti0),
+    PB1: (pb1, 1, Input<Floating>, CRL, exticr1, exti1),
+    PB2: (pb2, 2, Input<Floating>, CRL, exticr1, exti2),
+    PB3: (pb3, 3, Debugger, CRL, exticr1, exti3),
+    PB4: (pb4, 4, Debugger, CRL, exticr2, exti4),
+    PB5: (pb5, 5, Input<Floating>, CRL, exticr2, exti5),
+    PB6: (pb6, 6, Input<Floating>, CRL, exticr2, exti6),
+    PB7: (pb7, 7, Input<Floating>, CRL, exticr2, exti7),
+    PB8: (pb8, 8, Input<Floating>, CRH, exticr3, exti8),
+    PB9: (pb9, 9, Input<Floating>, CRH, exticr3, exti9),
+    PB10: (pb10, 10, Input<Floating>, CRH, exticr3, exti10),
+    PB11: (pb11, 11, Input<Floating>, CRH, exticr3, exti11),
+    PB12: (pb12, 12, Input<Floating>, CRH, exticr4, exti12),
+    PB13: (pb13, 13, Input<Floating>, CRH, exticr4, exti13),
+    PB14: (pb14, 14, Input<Floating>, CRH, exticr4, exti14),
+    PB15: (pb15, 15, Input<Floating>, CRH, exticr4, exti15),
 ]);
 
 gpio!(GPIOC, gpioc, gpioa, PCx, 2, [
-    PC0: (pc0, 0, Input<Floating>, CRL, exticr1),
-    PC1: (pc1, 1, Input<Floating>, CRL, exticr1),
-    PC2: (pc2, 2, Input<Floating>, CRL, exticr1),
-    PC3: (pc3, 3, Input<Floating>, CRL, exticr1),
-    PC4: (pc4, 4, Input<Floating>, CRL, exticr2),
-    PC5: (pc5, 5, Input<Floating>, CRL, exticr2),
-    PC6: (pc6, 6, Input<Floating>, CRL, exticr2),
-    PC7: (pc7, 7, Input<Floating>, CRL, exticr2),
-    PC8: (pc8, 8, Input<Floating>, CRH, exticr3),
-    PC9: (pc9, 9, Input<Floating>, CRH, exticr3),
-    PC10: (pc10, 10, Input<Floating>, CRH, exticr3),
-    PC11: (pc11, 11, Input<Floating>, CRH, exticr3),
-    PC12: (pc12, 12, Input<Floating>, CRH, exticr4),
-    PC13: (pc13, 13, Input<Floating>, CRH, exticr4),
-    PC14: (pc14, 14, Input<Floating>, CRH, exticr4),
-    PC15: (pc15, 15, Input<Floating>, CRH, exticr4),
+    PC0: (pc0, 0, Input<Floating>, CRL, exticr1, exti0),
+    PC1: (pc1, 1, Input<Floating>, CRL, exticr1, exti1),
+    PC2: (pc2, 2, Input<Floating>, CRL, exticr1, exti2),
+    PC3: (pc3, 3, Input<Floating>, CRL, exticr1, exti3),
+    PC4: (pc4, 4, Input<Floating>, CRL, exticr2, exti4),
+    PC5: (pc5, 5, Input<Floating>, CRL, exticr2, exti5),
+    PC6: (pc6, 6, Input<Floating>, CRL, exticr2, exti6),
+    PC7: (pc7, 7, Input<Floating>, CRL, exticr2, exti7),
+    PC8: (pc8, 8, Input<Floating>, CRH, exticr3, exti8),
+    PC9: (pc9, 9, Input<Floating>, CRH, exticr3, exti9),
+    PC10: (pc10, 10, Input<Floating>, CRH, exticr3, exti10),
+    PC11: (pc11, 11, Input<Floating>, CRH, exticr3, exti11),
+    PC12: (pc12, 12, Input<Floating>, CRH, exticr4, exti12),
+    PC13: (pc13, 13, Input<Floating>, CRH, exticr4, exti13),
+    PC14: (pc14, 14, Input<Floating>, CRH, exticr4, exti14),
+    PC15: (pc15, 15, Input<Floating>, CRH, exticr4, exti15),
 ]);
 
 gpio!(GPIOD, gpiod, gpioa, PDx, 3, [
-    PD0: (pd0, 0, Input<Floating>, CRL, exticr1),
-    PD1: (pd1, 1, Input<Floating>, CRL, exticr1),
-    PD2: (pd2, 2, Input<Floating>, CRL, exticr1),
-    PD3: (pd3, 3, Input<Floating>, CRL, exticr1),
-    PD4: (pd4, 4, Input<Floating>, CRL, exticr2),
-    PD5: (pd5, 5, Input<Floating>, CRL, exticr2),
-    PD6: (pd6, 6, Input<Floating>, CRL, exticr2),
-    PD7: (pd7, 7, Input<Floating>, CRL, exticr2),
-    PD8: (pd8, 8, Input<Floating>, CRH, exticr3),
-    PD9: (pd9, 9, Input<Floating>, CRH, exticr3),
-    PD10: (pd10, 10, Input<Floating>, CRH, exticr3),
-    PD11: (pd11, 11, Input<Floating>, CRH, exticr3),
-    PD12: (pd12, 12, Input<Floating>, CRH, exticr4),
-    PD13: (pd13, 13, Input<Floating>, CRH, exticr4),
-    PD14: (pd14, 14, Input<Floating>, CRH, exticr4),
-    PD15: (pd15, 15, Input<Floating>, CRH, exticr4),
+    PD0: (pd0, 0, Input<Floating>, CRL, exticr1, exti0),
+    PD1: (pd1, 1, Input<Floating>, CRL, exticr1, exti1),
+    PD2: (pd2, 2, Input<Floating>, CRL, exticr1, exti2),
+    PD3: (pd3, 3, Input<Floating>, CRL, exticr1, exti3),
+    PD4: (pd4, 4, Input<Floating>, CRL, exticr2, exti4),
+    PD5: (pd5, 5, Input<Floating>, CRL, exticr2, exti5),
+    PD6: (pd6, 6, Input<Floating>, CRL, exticr2, exti6),
+    PD7: (pd7, 7, Input<Floating>, CRL, exticr2, exti7),
+    PD8: (pd8, 8, Input<Floating>, CRH, exticr3, exti8),
+    PD9: (pd9, 9, Input<Floating>, CRH, exticr3, exti9),
+    PD10: (pd10, 10, Input<Floating>, CRH, exticr3, exti10),
+    PD11: (pd11, 11, Input<Floating>, CRH, exticr3, exti11),
+    PD12: (pd12, 12, Input<Floating>, CRH, exticr4, exti12),
+    PD13: (pd13, 13, Input<Floating>, CRH, exticr4, exti13),
+    PD14: (pd14, 14, Input<Floating>, CRH, exticr4, exti14),
+    PD15: (pd15, 15, Input<Floating>, CRH, exticr4, exti15),
 ]);
 
 gpio!(GPIOE, gpioe, gpioa, PEx, 4, [
-    PE0: (pe0, 0, Input<Floating>, CRL, exticr1),
-    PE1: (pe1, 1, Input<Floating>, CRL, exticr1),
-    PE2: (pe2, 2, Input<Floating>, CRL, exticr1),
-    PE3: (pe3, 3, Input<Floating>, CRL, exticr1),
-    PE4: (pe4, 4, Input<Floating>, CRL, exticr2),
-    PE5: (pe5, 5, Input<Floating>, CRL, exticr2),
-    PE6: (pe6, 6, Input<Floating>, CRL, exticr2),
-    PE7: (pe7, 7, Input<Floating>, CRL, exticr2),
-    PE8: (pe8, 8, Input<Floating>, CRH, exticr3),
-    PE9: (pe9, 9, Input<Floating>, CRH, exticr3),
-    PE10: (pe10, 10, Input<Floating>, CRH, exticr3),
-    PE11: (pe11, 11, Input<Floating>, CRH, exticr3),
-    PE12: (pe12, 12, Input<Floating>, CRH, exticr4),
-    PE13: (pe13, 13, Input<Floating>, CRH, exticr4),
-    PE14: (pe14, 14, Input<Floating>, CRH, exticr4),
-    PE15: (pe15, 15, Input<Floating>, CRH, exticr4),
+    PE0: (pe0, 0, Input<Floating>, CRL, exticr1, exti0),
+    PE1: (pe1, 1, Input<Floating>, CRL, exticr1, exti1),
+    PE2: (pe2, 2, Input<Floating>, CRL, exticr1, exti2),
+    PE3: (pe3, 3, Input<Floating>, CRL, exticr1, exti3),
+    PE4: (pe4, 4, Input<Floating>, CRL, exticr2, exti4),
+    PE5: (pe5, 5, Input<Floating>, CRL, exticr2, exti5),
+    PE6: (pe6, 6, Input<Floating>, CRL, exticr2, exti6),
+    PE7: (pe7, 7, Input<Floating>, CRL, exticr2, exti7),
+    PE8: (pe8, 8, Input<Floating>, CRH, exticr3, exti8),
+    PE9: (pe9, 9, Input<Floating>, CRH, exticr3, exti9),
+    PE10: (pe10, 10, Input<Floating>, CRH, exticr3, exti10),
+    PE11: (pe11, 11, Input<Floating>, CRH, exticr3, exti11),
+    PE12: (pe12, 12, Input<Floating>, CRH, exticr4, exti12),
+    PE13: (pe13, 13, Input<Floating>, CRH, exticr4, exti13),
+    PE14: (pe14, 14, Input<Floating>, CRH, exticr4, exti14),
+    PE15: (pe15, 15, Input<Floating>, CRH, exticr4, exti15),
 ]);
