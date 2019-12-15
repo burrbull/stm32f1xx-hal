@@ -77,6 +77,23 @@ pub enum State {
     Low,
 }
 
+pub enum Speed {
+    M2,
+    M10,
+    M50,
+}
+
+use crate::pac::gpioa::crl::MODE_A;
+impl From<Speed> for MODE_A {
+    fn from(s: Speed) -> Self {
+        match s {
+            Speed::M2 => MODE_A::OUTPUT2,
+            Speed::M10 => MODE_A::OUTPUT,
+            Speed::M50 => MODE_A::OUTPUT50,
+        }
+    }
+}
+
 // Using SCREAMING_SNAKE_CASE to be consistent with other HALs
 // see 59b2740 and #125 for motivation
 #[allow(non_camel_case_types)]
@@ -107,7 +124,7 @@ macro_rules! gpio {
             use core::marker::PhantomData;
 
             use crate::hal::digital::v2::{InputPin, OutputPin, StatefulOutputPin, toggleable};
-            use crate::pac::{$gpioy, $GPIOX};
+            use crate::pac::{$gpioy, $GPIOX, $gpioy::crl::{CNF_A, MODE_A}};
             use crate::stm32::EXTI;
             use crate::afio;
 
@@ -308,7 +325,7 @@ macro_rules! gpio {
 
                 fn is_low(&self) -> Result<bool, Self::Error> {
                     // NOTE(unsafe) atomic read with no side effects
-                    Ok(unsafe { (*$GPIOX::ptr()).idr.read().bits() & (1 << self.i) == 0 })
+                    Ok(unsafe { (*$GPIOX::ptr()).idr.read().idr(self.i as u32).bit_is_clear() })
                 }
             }
 
@@ -343,14 +360,9 @@ macro_rules! gpio {
                         self,
                         cr: &mut $CR,
                     ) -> $PXi<Alternate<PushPull>> {
-                        // Alternate function output push pull
-                        const CNF: u8 = 0b10;
-                        // Output mode, max speed 50 MHz
-                        const MODE: u8 = 0b11;
-
                         cr.cr().modify(|_, w| unsafe { w
-                            .cnf($i).bits(CNF)
-                            .mode($i).bits(MODE)
+                            .cnf($i).variant(CNF_A::ALTPUSHPULL)
+                            .mode($i).variant(MODE_A::OUTPUT50)
                         });
 
                         $PXi { _mode: PhantomData }
@@ -362,14 +374,9 @@ macro_rules! gpio {
                         self,
                         cr: &mut $CR,
                     ) -> $PXi<Alternate<OpenDrain>> {
-                        // Alternate function output open drain
-                        const CNF: u8 = 0b11;
-                        // Output mode, max speed 50 MHz
-                        const MODE: u8 = 0b11;
-
                         cr.cr().modify(|_, w| unsafe { w
-                            .cnf($i).bits(CNF)
-                            .mode($i).bits(MODE)
+                            .cnf($i).variant(CNF_A::ALTOPENDRAIN)
+                            .mode($i).variant(MODE_A::OUTPUT50)
                         });
 
                         $PXi { _mode: PhantomData }
@@ -382,12 +389,10 @@ macro_rules! gpio {
                     ) -> $PXi<Input<Floating>> {
                         // Floating input
                         const CNF: u8 = 0b01;
-                        // Input mode
-                        const MODE: u8 = 0b00;
 
                         cr.cr().modify(|_, w| unsafe { w
                             .cnf($i).bits(CNF)
-                            .mode($i).bits(MODE)
+                            .mode($i).variant(MODE_A::INPUT)
                         });
 
                         $PXi { _mode: PhantomData }
@@ -400,16 +405,14 @@ macro_rules! gpio {
                     ) -> $PXi<Input<PullDown>> {
                         // Pull up/down input
                         const CNF: u8 = 0b10;
-                        // Input mode
-                        const MODE: u8 = 0b00;
 
                         //pull down:
                         // NOTE(unsafe) atomic write to a stateless register
-                        unsafe { (*$GPIOX::ptr()).bsrr.write(|w| w.bits(1 << (16 + $i))) }
+                        unsafe { (*$GPIOX::ptr()).bsrr.write(|w| w.br($i).set_bit()) }
 
                         cr.cr().modify(|_, w| unsafe { w
                             .cnf($i).bits(CNF)
-                            .mode($i).bits(MODE)
+                            .mode($i).variant(MODE_A::INPUT)
                         });
 
                         $PXi { _mode: PhantomData }
@@ -422,16 +425,14 @@ macro_rules! gpio {
                     ) -> $PXi<Input<PullUp>> {
                         // Pull up/down input
                         const CNF: u8 = 0b10;
-                        // Input mode
-                        const MODE: u8 = 0b00;
 
                         //pull up:
                         // NOTE(unsafe) atomic write to a stateless register
-                        unsafe { (*$GPIOX::ptr()).bsrr.write(|w| w.bits(1 << $i)) }
+                        unsafe { (*$GPIOX::ptr()).bsrr.write(|w| w.bs($i).set_bit()) }
 
                         cr.cr().modify(|_, w| unsafe { w
                             .cnf($i).bits(CNF)
-                            .mode($i).bits(MODE)
+                            .mode($i).variant(MODE_A::INPUT)
                         });
 
                         $PXi { _mode: PhantomData }
@@ -453,11 +454,6 @@ macro_rules! gpio {
                         cr: &mut $CR,
                         initial_state: State,
                     ) -> $PXi<Output<OpenDrain>> {
-                        // General purpose output open-drain
-                        const CNF: u8 = 0b01;
-                        // Open-Drain Output mode, max speed 50 MHz
-                        const MODE: u8 = 0b11;
-
                         let mut res = $PXi { _mode: PhantomData };
 
                         match initial_state {
@@ -466,8 +462,8 @@ macro_rules! gpio {
                         }.unwrap();
 
                         cr.cr().modify(|_, w| unsafe { w
-                            .cnf($i).bits(CNF)
-                            .mode($i).bits(MODE)
+                            .cnf($i).variant(CNF_A::OPENDRAIN)
+                            .mode($i).variant(MODE_A::OUTPUT50)
                         });
 
                         res
@@ -488,11 +484,6 @@ macro_rules! gpio {
                         cr: &mut $CR,
                         initial_state: State,
                     ) -> $PXi<Output<PushPull>> {
-                        // General purpose output push-pull
-                        const CNF: u8 = 0b00;
-                        // Output mode, max speed 50 MHz
-                        const MODE: u8 = 0b11;
-
                         let mut res = $PXi { _mode: PhantomData };
 
                         match initial_state {
@@ -501,8 +492,8 @@ macro_rules! gpio {
                         }.unwrap();
 
                         cr.cr().modify(|_, w| unsafe { w
-                            .cnf($i).bits(CNF)
-                            .mode($i).bits(MODE)
+                            .cnf($i).variant(CNF_A::PUSHPULL)
+                            .mode($i).variant(MODE_A::OUTPUT50)
                         });
 
                         res
@@ -512,12 +503,10 @@ macro_rules! gpio {
                     pub fn into_analog(self, cr: &mut $CR) -> $PXi<Analog> {
                         // Analog input
                         const CNF: u8 = 0b00;
-                        // Input mode
-                        const MODE: u8 = 0b00;
 
                         cr.cr().modify(|_, w| unsafe { w
                             .cnf($i).bits(CNF)
-                            .mode($i).bits(MODE)
+                            .mode($i).variant(MODE_A::INPUT)
                         });
 
                         $PXi { _mode: PhantomData }
@@ -539,6 +528,14 @@ macro_rules! gpio {
                     /// need all the elements to have the same type
                     pub fn downgrade(self) -> Pxx<MODE> {
                         self.into_generic().downgrade()
+                    }
+                }
+
+                impl<MODE> $PXi<Output<MODE>> {
+                    pub fn set_speed(&mut self, cr: &mut $CR, s: super::Speed) {
+                        cr.cr().modify(|_, w| unsafe { w
+                            .mode($i).variant(s.into())
+                        });
                     }
                 }
 
