@@ -10,7 +10,7 @@ use cortex_m::asm;
 use stm32f1xx_hal::{
     prelude::*,
     pac,
-    timer::{Tim2NoRemap, Timer},
+    timer::{Tim2NoRemap, Timer, NoChannel},
     time::U32Ext,
     pwm::Channel
 };
@@ -36,7 +36,7 @@ fn main() -> ! {
     let c3 = gpioa.pa2.into_alternate_push_pull(&mut gpioa.crl);
     // If you don't want to use all channels, just leave some out
     // let c4 = gpioa.pa3.into_alternate_push_pull(&mut gpioa.crl);
-    let pins = (c1, c2, c3);
+    let pins = (c1, c2, c3, NoChannel);
 
     // TIM3
     // let c1 = gpioa.pa6.into_alternate_push_pull(&mut gpioa.crl);

@@ -124,6 +124,13 @@ pub(crate) mod sealed {
     pub trait Ch4<REMAP> {}
 }
 
+pub struct NoChannel;
+impl<REMAP> sealed::Ch1<REMAP> for NoChannel {}
+impl<REMAP> sealed::Ch2<REMAP> for NoChannel {}
+impl<REMAP> sealed::Ch3<REMAP> for NoChannel {}
+impl<REMAP> sealed::Ch4<REMAP> for NoChannel {}
+impl crate::gpio::Mode<crate::gpio::Alternate<crate::gpio::PushPull>> for NoChannel {}
+
 macro_rules! remap {
     ($($name:ident: ($TIMX:ident, $state:literal, $P1:ident, $P2:ident, $P3:ident, $P4:ident),)+) => {
         $(
