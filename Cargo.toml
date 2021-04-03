@@ -73,6 +73,10 @@ version = "1.5.2"
 default-features = false
 version = "1.0.90"
 
+[dev-dependencies.svisual]
+git = "https://github.com/burrbull/svisual-rs"
+branch = "const"
+
 [features]
 device-selected = []
 doc = []
