@@ -243,7 +243,7 @@ macro_rules! gpio {
             use core::convert::Infallible;
             use core::marker::PhantomData;
 
-            use crate::hal::digital::{InputPin, OutputPin, StatefulOutputPin, toggleable};
+            use crate::hal::digital::{InputPin, OutputPin, StatefulOutputPin, toggleable, IoPin};
             use crate::pac::{$gpioy, $GPIOX};
             use crate::pac::EXTI;
             use crate::afio;
@@ -888,6 +888,28 @@ macro_rules! gpio {
                     }
                 }
 
+                impl<const N: u8> IoPin<$PX<Input<Floating>, $CR, N>, Self> for $PX<Output<PushPull>, $CR, N> {
+                    type Error = Infallible;
+                    fn into_input_pin(self) -> Result<$PX<Input<Floating>, $CR, N>, Self::Error> {
+                        Ok(self.into_floating_input(&mut $CR { _0: () }))
+                    }
+                    fn into_output_pin(mut self, state: State) -> Result<Self, Self::Error> {
+                        self.set_state(state);
+                        Ok(self)
+                    }
+                }
+
+                impl<const N: u8> IoPin<Self, $PX<Output<PushPull>, $CR, N>> for $PX<Input<Floating>, $CR, N> {
+                    type Error = Infallible;
+                    fn into_input_pin(self) -> Result<Self, Self::Error> {
+                        Ok(self)
+                    }
+                    fn into_output_pin(self, state: State) -> Result<$PX<Output<PushPull>, $CR, N>, Self::Error> {
+                        Ok(self.into_push_pull_output_with_state(&mut $CR { _0: () }, state))
+                    }
+                }
+                // TODO: other allowed impls
+
                 // These macros are defined here instead of at the top level in order
                 // to be able to refer to macro variables from the outer layers.
                 macro_rules! impl_temp_output {
@@ -936,10 +958,9 @@ macro_rules! gpio {
                                 Self::set_mode(cr);
                             }
                         }
-
-
                     }
                 }
+
                 macro_rules! impl_temp_input {
                     (
                         $fn_name:ident,

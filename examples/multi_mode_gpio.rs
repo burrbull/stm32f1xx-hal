@@ -8,6 +8,7 @@ use nb::block;
 
 use cortex_m_rt::entry;
 use cortex_m_semihosting::hprintln;
+use embedded_hal::digital::IoPin;
 use stm32f1xx_hal::{gpio::State, pac, prelude::*, timer::Timer};
 
 #[entry]
@@ -50,5 +51,17 @@ fn main() -> ! {
             out.set_low();
             block!(timer.wait()).unwrap();
         });
+
+        // or using embedded_hal::IoPin
+        pin = {
+            let mut out = pin.into_output_pin(State::High).unwrap();
+            block!(timer.wait()).unwrap();
+            out.set_low();
+            block!(timer.wait()).unwrap();
+            let pin = out.into_input_pin().unwrap();
+            block!(timer.wait()).unwrap();
+            hprintln!("{}", pin.is_high()).unwrap();
+            pin
+        }
     }
 }
