@@ -50,9 +50,8 @@ const APP: () = {
             .pc13
             .into_push_pull_output_with_state(&mut gpioc.crh, State::High);
         // Configure the syst timer to trigger an update every second and enables interrupt
-        let mut timer = Timer::tim1(cx.device.TIM1, &clocks, &mut rcc.apb2)
-            .start_count_down(1.hz())
-            .unwrap();
+        let mut timer =
+            Timer::tim1(cx.device.TIM1, &clocks, &mut rcc.apb2).start_count_down(1.hz());
         timer.listen(Event::Update);
 
         // Init the static resources to use them later through RTIC
@@ -95,9 +94,9 @@ const APP: () = {
 
         if *COUNT == 4 {
             // Changes timer update frequency
-            cx.resources.timer_handler.start(2.hz()).unwrap();
+            cx.resources.timer_handler.start(2.hz());
         } else if *COUNT == 12 {
-            cx.resources.timer_handler.start(1.hz()).unwrap();
+            cx.resources.timer_handler.start(1.hz());
             *COUNT = 0;
         }
 
