@@ -150,10 +150,7 @@ pub struct Alternate<MODE> {
 }
 impl<MODE> Active for Alternate<MODE> {}
 
-pub enum State {
-    High,
-    Low,
-}
+pub use embedded_hal::digital::PinState as State;
 
 // Using SCREAMING_SNAKE_CASE to be consistent with other HALs
 // see 59b2740 and #125 for motivation
@@ -347,58 +344,139 @@ macro_rules! gpio {
                 }
             }
 
-            impl<MODE> OutputPin for Generic<Output<MODE>> {
-                type Error = Infallible;
-                fn set_high(&mut self) -> Result<(), Self::Error> {
+            impl<MODE> Generic<Output<MODE>> {
+                #[inline]
+                pub fn set_state(&mut self, state: State) {
+                    match state {
+                        State::High => {
+                            unsafe { (*$GPIOX::ptr()).bsrr.write(|w| w.bits(1 << self.i)) }
+                        }
+                        State::Low => {
+                            unsafe { (*$GPIOX::ptr()).bsrr.write(|w| w.bits(1 << (16 + self.i))) }
+                        }
+                    }
+                }
+                #[inline]
+                pub fn set_high(&mut self) {
                     // NOTE(unsafe) atomic write to a stateless register
-                    Ok(unsafe { (*$GPIOX::ptr()).bsrr.write(|w| w.bits(1 << self.i)) })
+                    self.set_state(State::High)
                 }
 
-                fn set_low(&mut self) -> Result<(), Self::Error> {
+                #[inline]
+                pub fn set_low(&mut self) {
                     // NOTE(unsafe) atomic write to a stateless register
-                    Ok(unsafe { (*$GPIOX::ptr()).bsrr.write(|w| w.bits(1 << (16 + self.i))) })
+                    self.set_state(State::Low)
+                }
+            }
+
+            impl<MODE> OutputPin for Generic<Output<MODE>> {
+                type Error = Infallible;
+                #[inline]
+                fn set_high(&mut self) -> Result<(), Self::Error> {
+                    Ok(self.set_high())
+                }
+                #[inline]
+                fn set_low(&mut self) -> Result<(), Self::Error> {
+                    Ok(self.set_low())
+                }
+            }
+
+            impl<MODE> Generic<Output<MODE>> {
+                #[inline]
+                pub fn get_state(&self) -> State {
+                    if self.is_set_low() {
+                        State::Low
+                    } else {
+                        State::High
+                    }
+                }
+                #[inline]
+                pub fn is_set_high(&self) -> bool {
+                    !self.is_set_low()
+                }
+                #[inline]
+                pub fn is_set_low(&self) -> bool {
+                    // NOTE(unsafe) atomic read with no side effects
+                    unsafe { (*$GPIOX::ptr()).odr.read().bits() & (1 << self.i) == 0 }
+                }
+            }
+
+            impl<MODE> StatefulOutputPin for Generic<Output<MODE>> {
+                #[inline]
+                fn is_set_high(&self) -> Result<bool, Self::Error> {
+                    Ok(self.is_set_high())
+                }
+                #[inline]
+                fn is_set_low(&self) -> Result<bool, Self::Error> {
+                    // NOTE(unsafe) atomic read with no side effects
+                    Ok(self.is_set_low())
+                }
+            }
+
+            impl<MODE> Generic<Output<MODE>> {
+                #[inline]
+                pub fn toggle(&mut self) {
+                    if self.is_set_low() {
+                        self.set_high()
+                    } else {
+                        self.set_low()
+                    }
+                }
+            }
+
+            impl<MODE> toggleable::Default for Generic<Output<MODE>> {}
+
+            impl<MODE> Generic<Input<MODE>> {
+                #[inline]
+                pub fn is_high(&self) -> bool {
+                    !self.is_low()
+                }
+                #[inline]
+                pub fn is_low(&self) -> bool {
+                    // NOTE(unsafe) atomic read with no side effects
+                    unsafe { (*$GPIOX::ptr()).idr.read().bits() & (1 << self.i) == 0 }
                 }
             }
 
             impl<MODE> InputPin for Generic<Input<MODE>> {
                 type Error = Infallible;
+                #[inline]
                 fn is_high(&self) -> Result<bool, Self::Error> {
-                    self.is_low().map(|b| !b)
+                    Ok(self.is_high())
                 }
+                #[inline]
+                fn is_low(&self) -> Result<bool, Self::Error> {
+                    Ok(self.is_low())
+                }
+            }
 
+            impl Generic<Output<OpenDrain>> {
+                #[inline]
+                pub fn is_high(&self) -> bool {
+                    !self.is_low()
+                }
+                #[inline]
+                pub fn is_low(&self) -> bool {
+                    // NOTE(unsafe) atomic read with no side effects
+                    unsafe { (*$GPIOX::ptr()).idr.read().bits() & (1 << self.i) == 0 }
+                }
+            }
+
+            impl InputPin for Generic<Output<OpenDrain>> {
+                type Error = Infallible;
+                #[inline]
+                fn is_high(&self) -> Result<bool, Self::Error> {
+                    Ok(self.is_high())
+                }
+                #[inline]
                 fn is_low(&self) -> Result<bool, Self::Error> {
                     // NOTE(unsafe) atomic read with no side effects
-                    Ok(unsafe { (*$GPIOX::ptr()).idr.read().bits() & (1 << self.i) == 0 })
+                    Ok(self.is_low())
                 }
             }
 
             impl<MODE> ExtiPin for Generic<Input<MODE>> {
                 exti!($extigpionr);
-            }
-
-            impl <MODE> StatefulOutputPin for Generic<Output<MODE>> {
-                fn is_set_high(&self) -> Result<bool, Self::Error> {
-                    self.is_set_low().map(|b| !b)
-                }
-
-                fn is_set_low(&self) -> Result<bool, Self::Error> {
-                    // NOTE(unsafe) atomic read with no side effects
-                    Ok(unsafe { (*$GPIOX::ptr()).odr.read().bits() & (1 << self.i) == 0 })
-                }
-            }
-
-            impl <MODE> toggleable::Default for Generic<Output<MODE>> {}
-
-            impl InputPin for Generic<Output<OpenDrain>> {
-                type Error = Infallible;
-                fn is_high(&self) -> Result<bool, Self::Error> {
-                    self.is_low().map(|b| !b)
-                }
-
-                fn is_low(&self) -> Result<bool, Self::Error> {
-                    // NOTE(unsafe) atomic read with no side effects
-                    Ok(unsafe { (*$GPIOX::ptr()).idr.read().bits() & (1 << self.i) == 0 })
-                }
             }
 
             pub type $PXx<MODE> = Pxx<MODE>;
@@ -466,7 +544,8 @@ macro_rules! gpio {
                   before changing its mode to an output to avoid
                   a short spike of an incorrect value
                 */
-                fn set_state(&mut self, state: State) {
+                #[inline]
+                fn _set_state(&mut self, state: State) {
                     match state {
                         State::High => unsafe {
                             (*$GPIOX::ptr()).bsrr.write(|w| w.bits(1 << {N}))
@@ -477,13 +556,40 @@ macro_rules! gpio {
                     }
                 }
 
+                #[inline]
                 fn _is_set_low(&self) -> bool {
                     unsafe { (*$GPIOX::ptr()).odr.read().bits() & (1 << {N}) == 0 }
                 }
 
+                #[inline]
+                fn _get_state(&mut self) -> State {
+                    if self._is_set_low() {
+                        State::Low
+                    } else {
+                        State::High
+                    }
+                }
+
+                #[inline]
                 fn _is_low(&self) -> bool {
                     // NOTE(unsafe) atomic read with no side effects
                     unsafe { (*$GPIOX::ptr()).idr.read().bits() & (1 << {N}) == 0 }
+                }
+            }
+
+
+            impl<MODE, CR, const N: u8> $PX<Output<MODE>, CR, N> {
+                #[inline]
+                pub fn set_state(&mut self, state: State) {
+                    self._set_state(state)
+                }
+                #[inline]
+                pub fn set_high(&mut self) {
+                    self._set_state(State::High)
+                }
+                #[inline]
+                pub fn set_low(&mut self) {
+                    self._set_state(State::Low)
                 }
             }
 
@@ -494,41 +600,91 @@ macro_rules! gpio {
                 #[inline]
                 fn set_high(&mut self) -> Result<(), Self::Error> {
                     // NOTE(unsafe) atomic write to a stateless register
-                    Ok(self.set_state(State::High))
+                    Ok(self.set_high())
                 }
 
                 #[inline]
                 fn set_low(&mut self) -> Result<(), Self::Error> {
                     // NOTE(unsafe) atomic write to a stateless register
-                    Ok(self.set_state(State::Low))
+                    Ok(self.set_low())
+                }
+            }
+
+            impl<MODE, CR, const N: u8> $PX<Output<MODE>, CR, N> {
+                #[inline]
+                pub fn get_state(&mut self) -> State {
+                    self._get_state()
+                }
+                #[inline]
+                pub fn is_set_high(&self) -> bool {
+                    !self._is_set_low()
+                }
+                #[inline]
+                pub fn is_set_low(&self) -> bool {
+                    self._is_set_low()
                 }
             }
 
             impl<MODE, CR, const N: u8> StatefulOutputPin for $PX<Output<MODE>, CR, N> {
                 #[inline]
                 fn is_set_high(&self) -> Result<bool, Self::Error> {
-                    self.is_set_low().map(|b| !b)
+                    Ok(self.is_set_high())
                 }
 
                 #[inline]
                 fn is_set_low(&self) -> Result<bool, Self::Error> {
-                    Ok(self._is_set_low())
+                    Ok(self.is_set_low())
+                }
+            }
+
+            impl<MODE, CR, const N: u8> $PX<Output<MODE>, CR, N> {
+                #[inline]
+                pub fn toggle(&mut self) {
+                    if self.is_set_low() {
+                        self.set_high()
+                    } else {
+                        self.set_low()
+                    }
                 }
             }
 
             impl<MODE, CR, const N: u8> toggleable::Default for $PX<Output<MODE>, CR, N> {}
 
+            impl<MODE, CR, const N: u8> $PX<Input<MODE>, CR, N> {
+                #[inline]
+                pub fn is_high(&self) -> bool {
+                    !self._is_low()
+                }
+                #[inline]
+                pub fn is_low(&self) -> bool {
+                    // NOTE(unsafe) atomic read with no side effects
+                    self._is_low()
+                }
+            }
+
             impl<MODE, CR, const N: u8> InputPin for $PX<Input<MODE>, CR, N> {
                 type Error = Infallible;
                 #[inline]
                 fn is_high(&self) -> Result<bool, Self::Error> {
-                    self.is_low().map(|b| !b)
+                    Ok(self.is_high())
                 }
 
                 #[inline]
                 fn is_low(&self) -> Result<bool, Self::Error> {
                     // NOTE(unsafe) atomic read with no side effects
-                    Ok(self._is_low())
+                    Ok(self.is_low())
+                }
+            }
+
+            impl<CR, const N: u8> $PX<Output<OpenDrain>, CR, N> {
+                #[inline]
+                fn is_high(&self) -> bool {
+                    !self._is_low()
+                }
+
+                #[inline]
+                fn is_low(&self) -> bool {
+                    self._is_low()
                 }
             }
 
@@ -536,19 +692,19 @@ macro_rules! gpio {
                 type Error = Infallible;
                 #[inline]
                 fn is_high(&self) -> Result<bool, Self::Error> {
-                    self.is_low().map(|b| !b)
+                    Ok(self.is_high())
                 }
 
                 #[inline]
                 fn is_low(&self) -> Result<bool, Self::Error> {
-                    Ok(self._is_low())
+                    Ok(self.is_low())
                 }
             }
             impl<CR, const N: u8> OutputPin for $PX<Dynamic, CR, N> {
                 type Error = PinModeError;
                 fn set_high(&mut self) -> Result<(), Self::Error> {
                     if self.mode.is_output() {
-                        self.set_state(State::High);
+                        self._set_state(State::High);
                         Ok(())
                     }
                     else {
@@ -557,7 +713,7 @@ macro_rules! gpio {
                 }
                 fn set_low(&mut self) -> Result<(), Self::Error> {
                     if self.mode.is_output() {
-                        self.set_state(State::Low);
+                        self._set_state(State::Low);
                         Ok(())
                     }
                     else {
@@ -685,7 +841,7 @@ macro_rules! gpio {
                         cr: &mut $CR,
                         initial_state: State,
                     ) -> $PX<Output<OpenDrain>, $CR, N> {
-                        self.set_state(initial_state);
+                        self._set_state(initial_state);
                         unsafe {
                             $PX::<Output<OpenDrain>, $CR, N>::set_mode(cr)
                         }
@@ -708,7 +864,7 @@ macro_rules! gpio {
                         cr: &mut $CR,
                         initial_state: State,
                     ) -> $PX<Output<PushPull>, $CR, N> {
-                        self.set_state(initial_state);
+                        self._set_state(initial_state);
                         unsafe {
                             $PX::<Output<PushPull>, $CR, N>::set_mode(cr)
                         }
@@ -773,13 +929,15 @@ macro_rules! gpio {
                             state: State,
                             mut f: impl FnMut(&mut $PX<$mode, $CR, N>)
                         ) {
-                            self.set_state(state);
+                            self._set_state(state);
                             let mut temp = unsafe { $PX::<$mode, $CR, N>::set_mode(cr) };
                             f(&mut temp);
                             unsafe {
                                 Self::set_mode(cr);
                             }
                         }
+
+
                     }
                 }
                 macro_rules! impl_temp_input {
@@ -1017,7 +1175,7 @@ macro_rules! gpio {
 
 macro_rules! impl_pxx {
     ($(($port:ident :: $pin:ident)),*) => {
-        use embedded_hal::digital::{InputPin, StatefulOutputPin, OutputPin};
+        use embedded_hal::digital::{InputPin, StatefulOutputPin, OutputPin, toggleable};
         use core::convert::Infallible;
 
         pub enum Pxx<MODE> {
@@ -1026,44 +1184,125 @@ macro_rules! impl_pxx {
             ),*
         }
 
-        impl<MODE> OutputPin for Pxx<Output<MODE>> {
-            type Error = Infallible;
-            fn set_high(&mut self) -> Result<(), Infallible> {
-                match self {
-                    $(Pxx::$pin(pin) => pin.set_high()),*
+        impl<MODE> Pxx<Output<MODE>> {
+            #[inline]
+            pub fn set_state(&mut self, state: State) {
+                match state {
+                    State::High => {
+                        match self {
+                            $(Pxx::$pin(pin) => pin.set_high()),*
+                        }
+                    }
+                    State::Low => {
+                        match self {
+                            $(Pxx::$pin(pin) => pin.set_low()),*
+                        }
+                    }
                 }
             }
-
-            fn set_low(&mut self) -> Result<(), Infallible> {
-                match self {
-                    $(Pxx::$pin(pin) => pin.set_low()),*
-                }
+            #[inline]
+            pub fn set_high(&mut self) {
+                self.set_state(State::High)
+            }
+            #[inline]
+            pub fn set_low(&mut self) {
+                self.set_state(State::Low)
             }
         }
 
-        impl<MODE> StatefulOutputPin for Pxx<Output<MODE>> {
-            fn is_set_high(&self) -> Result<bool, Self::Error> {
-                match self {
-                    $(Pxx::$pin(pin) => pin.is_set_high()),*
+        impl<MODE> OutputPin for Pxx<Output<MODE>> {
+            type Error = Infallible;
+            #[inline]
+            fn set_high(&mut self) -> Result<(), Infallible> {
+                Ok(self.set_high())
+            }
+            #[inline]
+            fn set_low(&mut self) -> Result<(), Infallible> {
+                Ok(self.set_low())
+            }
+        }
+
+        impl<MODE> Pxx<Output<MODE>> {
+            #[inline]
+            pub fn get_state(&self) -> State {
+                if self.is_set_low() {
+                    State::Low
+                } else {
+                    State::High
                 }
             }
-
-            fn is_set_low(&self) -> Result<bool, Self::Error> {
+            #[inline]
+            pub fn is_set_high(&self) -> bool {
+                !self.is_set_low()
+            }
+            #[inline]
+            pub fn is_set_low(&self) -> bool {
                 match self {
                     $(Pxx::$pin(pin) => pin.is_set_low()),*
                 }
             }
         }
 
-        impl<MODE> InputPin for Pxx<Input<MODE>> {
-            type Error = Infallible;
-            fn is_high(&self) -> Result<bool, Infallible> {
+        impl<MODE> StatefulOutputPin for Pxx<Output<MODE>> {
+            #[inline]
+            fn is_set_high(&self) -> Result<bool, Self::Error> {
+                Ok(self.is_set_high())
+            }
+            #[inline]
+            fn is_set_low(&self) -> Result<bool, Self::Error> {
+                Ok(self.is_set_low())
+            }
+        }
+
+        impl<MODE> Pxx<Output<MODE>> {
+            #[inline]
+            pub fn toggle(&mut self) {
+                if self.is_set_low() {
+                    self.set_high()
+                } else {
+                    self.set_low()
+                }
+            }
+        }
+
+        impl<MODE> toggleable::Default for Pxx<Output<MODE>> {}
+
+        impl<MODE> Pxx<Input<MODE>> {
+            #[inline]
+            pub fn is_high(&self) -> bool {
                 match self {
                     $(Pxx::$pin(pin) => pin.is_high()),*
                 }
             }
+            #[inline]
+            pub fn is_low(&self) -> bool {
+                match self {
+                    $(Pxx::$pin(pin) => pin.is_low()),*
+                }
+            }
+        }
 
+        impl<MODE> InputPin for Pxx<Input<MODE>> {
+            type Error = Infallible;
+            #[inline]
+            fn is_high(&self) -> Result<bool, Infallible> {
+                Ok(self.is_high())
+            }
+            #[inline]
             fn is_low(&self) -> Result<bool, Infallible> {
+                Ok(self.is_low())
+            }
+        }
+
+        impl Pxx<Output<OpenDrain>> {
+            #[inline]
+            fn is_high(&self) -> bool {
+                match self {
+                    $(Pxx::$pin(pin) => pin.is_high()),*
+                }
+            }
+            #[inline]
+            fn is_low(&self) -> bool {
                 match self {
                     $(Pxx::$pin(pin) => pin.is_low()),*
                 }
@@ -1073,15 +1312,11 @@ macro_rules! impl_pxx {
         impl InputPin for Pxx<Output<OpenDrain>> {
             type Error = Infallible;
             fn is_high(&self) -> Result<bool, Infallible> {
-                match self {
-                    $(Pxx::$pin(pin) => pin.is_high()),*
-                }
+                Ok(self.is_high())
             }
 
             fn is_low(&self) -> Result<bool, Infallible> {
-                match self {
-                    $(Pxx::$pin(pin) => pin.is_low()),*
-                }
+                Ok(self.is_low())
             }
         }
 
