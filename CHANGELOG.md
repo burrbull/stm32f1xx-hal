@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- `rcc::Config` with prescalers for direct setting of clocks without calculating
 - Support for OpenDrain pin configuration on SPI CLK and MOSI pins
 - LSB/MSB bit format selection for `SPI`
 - Support for CAN peripherals with the `bxcan` crate
