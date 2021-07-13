@@ -46,48 +46,27 @@ pub struct Rcc {
 }
 
 /// AMBA High-performance Bus (AHB) registers
-///
-/// Aquired through the `Rcc` registers:
-///
-/// ```rust
-/// let dp = pac::Peripherals::take().unwrap();
-/// let mut rcc = dp.RCC.constrain();
-/// function_that_uses_ahb(&mut rcc.ahb)
-/// ```
 pub struct AHB {
     _0: (),
 }
 
 impl AHB {
-    // TODO remove `allow`
-    #[allow(dead_code)]
     fn enr(rcc: &RccRB) -> &rcc::AHBENR {
-        // NOTE(unsafe) this proxy grants exclusive access to this register
         &rcc.ahbenr
     }
 }
 
 /// Advanced Peripheral Bus 1 (APB1) registers
-///
-/// Aquired through the `Rcc` registers:
-///
-/// ```rust
-/// let dp = pac::Peripherals::take().unwrap();
-/// let mut rcc = dp.RCC.constrain();
-/// function_that_uses_apb1(&mut rcc.apb1)
-/// ```
 pub struct APB1 {
     _0: (),
 }
 
 impl APB1 {
     fn enr(rcc: &RccRB) -> &rcc::APB1ENR {
-        // NOTE(unsafe) this proxy grants exclusive access to this register
         &rcc.apb1enr
     }
 
     fn rstr(rcc: &RccRB) -> &rcc::APB1RSTR {
-        // NOTE(unsafe) this proxy grants exclusive access to this register
         &rcc.apb1rstr
     }
 }
@@ -103,26 +82,16 @@ impl APB1 {
 }
 
 /// Advanced Peripheral Bus 2 (APB2) registers
-///
-/// Aquired through the `Rcc` registers:
-///
-/// ```rust
-/// let dp = pac::Peripherals::take().unwrap();
-/// let mut rcc = dp.RCC.constrain();
-/// function_that_uses_apb2(&mut rcc.apb2);
-/// ```
 pub struct APB2 {
     _0: (),
 }
 
 impl APB2 {
     fn enr(rcc: &RccRB) -> &rcc::APB2ENR {
-        // NOTE(unsafe) this proxy grants exclusive access to this register
         &rcc.apb2enr
     }
 
     fn rstr(rcc: &RccRB) -> &rcc::APB2RSTR {
-        // NOTE(unsafe) this proxy grants exclusive access to this register
         &rcc.apb2rstr
     }
 }
