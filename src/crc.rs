@@ -1,17 +1,20 @@
 //! CRC
 
-use crate::pac::CRC;
-use crate::rcc::{Enable, AHB};
+use crate::pac::{CRC, RCC};
+use crate::rcc::Enable;
 
 /// Extension trait to constrain the CRC peripheral
 pub trait CrcExt {
     /// Constrains the CRC peripheral to play nicely with the other abstractions
-    fn new(self, ahb: &mut AHB) -> Crc;
+    fn new(self) -> Crc;
 }
 
 impl CrcExt for CRC {
-    fn new(self, ahb: &mut AHB) -> Crc {
-        CRC::enable(ahb);
+    fn new(self) -> Crc {
+        unsafe {
+            let rcc = &(*RCC::ptr());
+            CRC::enable(rcc);
+        }
         Crc { crc: self }
     }
 }

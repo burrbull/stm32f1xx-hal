@@ -18,9 +18,6 @@ pub trait RccExt {
 impl RccExt for RCC {
     fn constrain(self) -> Rcc {
         Rcc {
-            ahb: AHB { _0: () },
-            apb1: APB1 { _0: () },
-            apb2: APB2 { _0: () },
             cfgr: CFGR {
                 hse: None,
                 hclk: None,
@@ -44,12 +41,6 @@ impl RccExt for RCC {
 /// let mut rcc = dp.RCC.constrain();
 /// ```
 pub struct Rcc {
-    /// AMBA High-performance Bus (AHB) registers
-    pub ahb: AHB,
-    /// Advanced Peripheral Bus 1 (APB1) registers
-    pub apb1: APB1,
-    /// Advanced Peripheral Bus 2 (APB2) registers
-    pub apb2: APB2,
     pub cfgr: CFGR,
     pub bkp: BKP,
 }
@@ -70,7 +61,7 @@ pub struct AHB {
 impl AHB {
     // TODO remove `allow`
     #[allow(dead_code)]
-    pub(crate) fn enr(&mut self) -> &rcc::AHBENR {
+    pub(crate) fn enr() -> &'static rcc::AHBENR {
         // NOTE(unsafe) this proxy grants exclusive access to this register
         unsafe { &(*RCC::ptr()).ahbenr }
     }
@@ -90,12 +81,12 @@ pub struct APB1 {
 }
 
 impl APB1 {
-    pub(crate) fn enr(&mut self) -> &rcc::APB1ENR {
+    pub(crate) fn enr() -> &'static rcc::APB1ENR {
         // NOTE(unsafe) this proxy grants exclusive access to this register
         unsafe { &(*RCC::ptr()).apb1enr }
     }
 
-    pub(crate) fn rstr(&mut self) -> &rcc::APB1RSTR {
+    pub(crate) fn rstr() -> &'static rcc::APB1RSTR {
         // NOTE(unsafe) this proxy grants exclusive access to this register
         unsafe { &(*RCC::ptr()).apb1rstr }
     }
@@ -103,8 +94,8 @@ impl APB1 {
 
 impl APB1 {
     /// Set power interface clock (PWREN) bit in RCC_APB1ENR
-    pub fn set_pwren(&mut self) {
-        self.enr().modify(|_r, w| w.pwren().set_bit())
+    pub fn set_pwren() {
+        Self::enr().modify(|_r, w| w.pwren().set_bit())
     }
 }
 
@@ -122,12 +113,12 @@ pub struct APB2 {
 }
 
 impl APB2 {
-    pub(crate) fn enr(&mut self) -> &rcc::APB2ENR {
+    pub(crate) fn enr() -> &'static rcc::APB2ENR {
         // NOTE(unsafe) this proxy grants exclusive access to this register
         unsafe { &(*RCC::ptr()).apb2enr }
     }
 
-    pub(crate) fn rstr(&mut self) -> &rcc::APB2RSTR {
+    pub(crate) fn rstr() -> &'static rcc::APB2RSTR {
         // NOTE(unsafe) this proxy grants exclusive access to this register
         unsafe { &(*RCC::ptr()).apb2rstr }
     }
@@ -348,9 +339,12 @@ pub struct BKP {
 
 impl BKP {
     /// Enables write access to the registers in the backup domain
-    pub fn constrain(self, bkp: crate::pac::BKP, apb1: &mut APB1, pwr: &mut PWR) -> BackupDomain {
+    pub fn constrain(self, bkp: crate::pac::BKP, pwr: &mut PWR) -> BackupDomain {
         // Enable the backup interface by setting PWREN and BKPEN
-        crate::pac::BKP::enable(apb1);
+        unsafe {
+            let rcc = &(*RCC::ptr());
+            crate::pac::BKP::enable(rcc);
+        }
 
         // Enable access to the backup registers
         pwr.cr.modify(|_r, w| w.dbp().set_bit());
@@ -470,24 +464,28 @@ impl GetBusFreq for APB2 {
     }
 }
 
+use crate::pac::rcc::RegisterBlock as RccRB;
+
 pub(crate) mod sealed {
-    /// Bus associated to peripheral
-    pub trait RccBus {
-        /// Bus type;
-        type Bus;
-    }
+
+    pub trait Sealed {}
 }
-use sealed::RccBus;
+use sealed::Sealed;
+
+/// Bus associated to peripheral
+pub trait RccBus {
+    /// Bus type;
+    type Bus;
+}
 
 /// Enable/disable peripheral
 pub trait Enable: RccBus {
-    fn enable(apb: &mut Self::Bus);
-    fn disable(apb: &mut Self::Bus);
+    fn enable(rcc: &RccRB);
+    fn disable(rcc: &RccRB);
 }
-
 /// Reset peripheral
 pub trait Reset: RccBus {
-    fn reset(apb: &mut Self::Bus);
+    fn reset(rcc: &RccRB);
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

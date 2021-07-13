@@ -4,29 +4,31 @@ use crate::bb;
 macro_rules! bus {
     ($($PER:ident => ($apbX:ty, $bit:literal),)+) => {
         $(
+			impl Sealed for crate::pac::$PER {}
+
             impl RccBus for crate::pac::$PER {
                 type Bus = $apbX;
             }
             impl Enable for crate::pac::$PER {
                 #[inline(always)]
-                fn enable(apb: &mut Self::Bus) {
+                fn enable(_rcc: &RccRB) {
                     unsafe {
-                        bb::set(apb.enr(), $bit);
+                        bb::set(Self::Bus::enr(), $bit);
                     }
                 }
                 #[inline(always)]
-                fn disable(apb: &mut Self::Bus) {
+                fn disable(_rcc: &RccRB) {
                     unsafe {
-                        bb::clear(apb.enr(), $bit);
+                        bb::clear(Self::Bus::enr(), $bit);
                     }
                 }
             }
             impl Reset for crate::pac::$PER {
                 #[inline(always)]
-                fn reset(apb: &mut Self::Bus) {
+                fn reset(_rcc: &RccRB) {
                     unsafe {
-                        bb::set(apb.rstr(), $bit);
-                        bb::clear(apb.rstr(), $bit);
+                        bb::set(Self::Bus::rstr(), $bit);
+                        bb::clear(Self::Bus::rstr(), $bit);
                     }
                 }
             }
@@ -42,15 +44,15 @@ macro_rules! ahb_bus {
             }
             impl Enable for crate::pac::$PER {
                 #[inline(always)]
-                fn enable(ahb: &mut Self::Bus) {
+                fn enable(_rcc: &RccRB) {
                     unsafe {
-                        bb::set(ahb.enr(), $bit);
+                        bb::set(Self::Bus::enr(), $bit);
                     }
                 }
                 #[inline(always)]
-                fn disable(ahb: &mut Self::Bus) {
+                fn disable(_rcc: &RccRB) {
                     unsafe {
-                        bb::clear(ahb.enr(), $bit);
+                        bb::clear(Self::Bus::enr(), $bit);
                     }
                 }
             }
