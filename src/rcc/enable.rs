@@ -79,6 +79,7 @@ bus! {
 bus! {
     ADC1 => (APB2, 9),
     AFIO => (APB2, 0),
+    BKP => (APB1, 27),
     GPIOA => (APB2, 2),
     GPIOB => (APB2, 3),
     GPIOC => (APB2, 4),

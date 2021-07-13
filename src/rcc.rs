@@ -350,8 +350,7 @@ impl BKP {
     /// Enables write access to the registers in the backup domain
     pub fn constrain(self, bkp: crate::pac::BKP, apb1: &mut APB1, pwr: &mut PWR) -> BackupDomain {
         // Enable the backup interface by setting PWREN and BKPEN
-        apb1.enr()
-            .modify(|_r, w| w.bkpen().set_bit().pwren().set_bit());
+        crate::pac::BKP::enable(apb1);
 
         // Enable access to the backup registers
         pwr.cr.modify(|_r, w| w.dbp().set_bit());
