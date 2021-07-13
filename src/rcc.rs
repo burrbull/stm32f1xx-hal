@@ -61,9 +61,9 @@ pub struct AHB {
 impl AHB {
     // TODO remove `allow`
     #[allow(dead_code)]
-    pub(crate) fn enr() -> &'static rcc::AHBENR {
+    fn enr(rcc: &RccRB) -> &rcc::AHBENR {
         // NOTE(unsafe) this proxy grants exclusive access to this register
-        unsafe { &(*RCC::ptr()).ahbenr }
+        &rcc.ahbenr
     }
 }
 
@@ -81,21 +81,24 @@ pub struct APB1 {
 }
 
 impl APB1 {
-    pub(crate) fn enr() -> &'static rcc::APB1ENR {
+    fn enr(rcc: &RccRB) -> &rcc::APB1ENR {
         // NOTE(unsafe) this proxy grants exclusive access to this register
-        unsafe { &(*RCC::ptr()).apb1enr }
+        &rcc.apb1enr
     }
 
-    pub(crate) fn rstr() -> &'static rcc::APB1RSTR {
+    fn rstr(rcc: &RccRB) -> &rcc::APB1RSTR {
         // NOTE(unsafe) this proxy grants exclusive access to this register
-        unsafe { &(*RCC::ptr()).apb1rstr }
+        &rcc.apb1rstr
     }
 }
 
 impl APB1 {
     /// Set power interface clock (PWREN) bit in RCC_APB1ENR
     pub fn set_pwren() {
-        Self::enr().modify(|_r, w| w.pwren().set_bit())
+        unsafe {
+            let rcc = &*RCC::ptr();
+            PWR::enable(rcc);
+        }
     }
 }
 
@@ -113,14 +116,14 @@ pub struct APB2 {
 }
 
 impl APB2 {
-    pub(crate) fn enr() -> &'static rcc::APB2ENR {
+    fn enr(rcc: &RccRB) -> &rcc::APB2ENR {
         // NOTE(unsafe) this proxy grants exclusive access to this register
-        unsafe { &(*RCC::ptr()).apb2enr }
+        &rcc.apb2enr
     }
 
-    pub(crate) fn rstr() -> &'static rcc::APB2RSTR {
+    fn rstr(rcc: &RccRB) -> &rcc::APB2RSTR {
         // NOTE(unsafe) this proxy grants exclusive access to this register
-        unsafe { &(*RCC::ptr()).apb2rstr }
+        &rcc.apb2rstr
     }
 }
 

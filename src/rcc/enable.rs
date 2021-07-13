@@ -11,24 +11,24 @@ macro_rules! bus {
             }
             impl Enable for crate::pac::$PER {
                 #[inline(always)]
-                fn enable(_rcc: &RccRB) {
+                fn enable(rcc: &RccRB) {
                     unsafe {
-                        bb::set(Self::Bus::enr(), $bit);
+                        bb::set(Self::Bus::enr(rcc), $bit);
                     }
                 }
                 #[inline(always)]
-                fn disable(_rcc: &RccRB) {
+                fn disable(rcc: &RccRB) {
                     unsafe {
-                        bb::clear(Self::Bus::enr(), $bit);
+                        bb::clear(Self::Bus::enr(rcc), $bit);
                     }
                 }
             }
             impl Reset for crate::pac::$PER {
                 #[inline(always)]
-                fn reset(_rcc: &RccRB) {
+                fn reset(rcc: &RccRB) {
                     unsafe {
-                        bb::set(Self::Bus::rstr(), $bit);
-                        bb::clear(Self::Bus::rstr(), $bit);
+                        bb::set(Self::Bus::rstr(rcc), $bit);
+                        bb::clear(Self::Bus::rstr(rcc), $bit);
                     }
                 }
             }
@@ -44,15 +44,15 @@ macro_rules! ahb_bus {
             }
             impl Enable for crate::pac::$PER {
                 #[inline(always)]
-                fn enable(_rcc: &RccRB) {
+                fn enable(rcc: &RccRB) {
                     unsafe {
-                        bb::set(Self::Bus::enr(), $bit);
+                        bb::set(Self::Bus::enr(rcc), $bit);
                     }
                 }
                 #[inline(always)]
-                fn disable(_rcc: &RccRB) {
+                fn disable(rcc: &RccRB) {
                     unsafe {
-                        bb::clear(Self::Bus::enr(), $bit);
+                        bb::clear(Self::Bus::enr(rcc), $bit);
                     }
                 }
             }
@@ -89,6 +89,7 @@ bus! {
     GPIOE => (APB2, 6),
     I2C1 => (APB1, 21),
     I2C2 => (APB1, 22),
+    PWR => (APB1, 28),
     SPI1 => (APB2, 12),
     SPI2 => (APB1, 14),
     USART1 => (APB2, 14),
