@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Fix SPI3 alternate function remapping.
 
 ### Changed
+
+- Use bit-banding for Peripheral enable/reset.
+  Don't require APBs in initializers.
 - Use `cortex-m-rtic` instead of `cortex-m-rtfm` in the examples
 
 ## [v0.7.0]- 2020-10-17
