@@ -239,7 +239,6 @@ impl<REMAP, PINS> Spi<SPI3, REMAP, PINS, u8> {
         mode: Mode,
         freq: F,
         clocks: Clocks,
-        apb: &mut APB1,
     ) -> Self
     where
         F: Into<Hertz>,
@@ -247,7 +246,7 @@ impl<REMAP, PINS> Spi<SPI3, REMAP, PINS, u8> {
         PINS: Pins<REMAP, POS>,
     {
         mapr.modify_mapr(|_, w| w.spi3_remap().bit(REMAP::REMAP));
-        Spi::<SPI3, _, _, u8>::_spi(spi, pins, mode, freq.into(), clocks, apb)
+        Spi::<SPI3, _, _, u8>::_spi(spi, pins, mode, freq.into(), clocks)
     }
 }
 

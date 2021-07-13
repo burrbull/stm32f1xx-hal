@@ -112,7 +112,7 @@ where
 
     /// Creates a CAN interaface.
     #[cfg(feature = "connectivity")]
-    pub fn new(can: Instance, apb: &mut APB1) -> Can<Instance> {
+    pub fn new(can: Instance) -> Can<Instance> {
         Instance::enable(apb);
         Can { _peripheral: can }
     }
